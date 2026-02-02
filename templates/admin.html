@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Attendance - Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>QR Attendance System</h1>
+<p>Logged in as: <strong>{{ username }}</strong> (Admin)</p>
+<div style="margin-bottom: 10px;">
+  <a href="/admin/register" style="margin-right: 10px;">Register New Client</a>
+  <a href="/logout">Logout</a>
+</div>
+<hr>
+
+<h2>Scan QR Code for Attendance</h2>
+<p>Upload a photo of the QR code to record attendance.</p>
+
+<div style="margin: 20px 0;">
+  <input type="file" id="qrFile" accept="image/*" />
+  <button onclick="scanQR()">Scan QR Code</button>
+</div>
+
+<div id="result" style="margin-top: 20px; padding: 10px; border-radius: 5px;"></div>
+
+<script>
+function scanQR() {
+  const fileInput = document.getElementById("qrFile");
+  if (!fileInput.files.length) {
+    alert("Please select an image file");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+
+  fetch(`/scan`, {
+    method: "POST",
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    const resultDiv = document.getElementById("result");
+    if (data.status === "OK") {
+      resultDiv.style.backgroundColor = "#d4edda";
+      resultDiv.style.color = "#155724";
+      resultDiv.innerHTML = `✓ Success: ${data.message}`;
+    } else {
+      resultDiv.style.backgroundColor = "#f8d7da";
+      resultDiv.style.color = "#721c24";
+      resultDiv.innerHTML = `✗ Failed: ${data.message}`;
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    document.getElementById("result").innerHTML = `Error: ${err}`;
+  });
+}
+</script>
+
+</body>
+</html>

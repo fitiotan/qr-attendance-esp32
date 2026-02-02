@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Attendance - Client</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>QR Attendance System</h1>
+<p>Logged in as: <strong>{{ username }}</strong> (Client)</p>
+<a href="/logout">Logout</a>
+<hr>
+
+<h2>Your QR Code for Attendance</h2>
+<p>Show this QR code to the admin to record your attendance (valid for 1 minute).</p>
+
+<button onclick="generateQR()">Generate New QR Code</button>
+
+<div id="qrBox" style="margin-top: 20px;"></div>
+
+<script>
+function generateQR() {
+  fetch(`/generate_qr`, {
+    method: "POST"
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    document.getElementById("qrBox").innerHTML =
+      `<img src="/${data.qr_path}" width="300" style="border: 2px solid #333; padding: 10px;">`;
+  })
+  .catch(err => console.error(err));
+}
+
+// Generate QR on page load
+window.onload = function() {
+  generateQR();
+};
+</script>
+
+</body>
+</html>

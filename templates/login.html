@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login - QR Attendance</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div style="max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px;">
+  <h2>QR Attendance System - Login</h2>
+
+  {% if error %}
+  <div style="color: red; margin-bottom: 10px;">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login">
+    <div style="margin: 10px 0;">
+      <input name="username" placeholder="Username" required style="padding: 8px; width: 100%; box-sizing: border-box;">
+    </div>
+    <div style="margin: 10px 0;">
+      <input name="password" type="password" placeholder="Password" required style="padding: 8px; width: 100%; box-sizing: border-box;">
+    </div>
+    <button type="submit" style="padding: 8px 15px; width: 100%; cursor: pointer;">Login</button>
+  </form>
+
+  <p style="margin-top: 15px; text-align: center;">
+    <small>Contact your admin to register</small>
+  </p>
+</div>
+
+</body>
+</html>

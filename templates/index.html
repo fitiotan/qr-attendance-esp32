@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Attendance</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>QR Attendance System</h1>
+<p>Logged in as: <strong>{{ username }}</strong></p>
+<a href="/logout">Logout</a>
+<hr>
+
+<label>Employee ID:</label>
+<input type="number" id="empId" value="1">
+
+<button onclick="generateQR()">Generate QR (1 min)</button>
+
+<div id="qrBox"></div>
+
+<script>
+function generateQR() {
+  const id = document.getElementById("empId").value;
+
+  fetch(`/generate_qr?employee_id=${id}`, {
+    method: "POST"
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("qrBox").innerHTML =
+      `<img src="/${data.qr_path}" width="300">`;
+  });
+}
+</script>
+
+</body>
+</html>

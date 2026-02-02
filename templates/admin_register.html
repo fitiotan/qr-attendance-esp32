@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register New Client - Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>Register New Client</h1>
+<p>Logged in as: <strong>{{ username }}</strong> (Admin)</p>
+<a href="/admin">Back to Admin Panel</a>
+<hr>
+
+<form id="registerForm">
+  <div style="margin: 10px 0;">
+    <label for="username">Client Username:</label><br>
+    <input type="text" id="username" name="username" required style="padding: 5px; width: 250px;">
+  </div>
+
+  <div style="margin: 10px 0;">
+    <label for="password">Password:</label><br>
+    <input type="password" id="password" name="password" required style="padding: 5px; width: 250px;">
+  </div>
+
+  <button type="submit" style="padding: 8px 15px;">Register Client</button>
+</form>
+
+<div id="message" style="margin-top: 20px; padding: 10px; border-radius: 5px;"></div>
+
+<script>
+document.getElementById("registerForm").onsubmit = async function(e) {
+  e.preventDefault();
+
+  const formData = new FormData(this);
+
+  const response = await fetch("/admin/register", {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await response.json();
+  const messageDiv = document.getElementById("message");
+
+  if (data.status === "success") {
+    messageDiv.style.backgroundColor = "#d4edda";
+    messageDiv.style.color = "#155724";
+    messageDiv.innerHTML = `✓ ${data.message}`;
+    document.getElementById("registerForm").reset();
+  } else {
+    messageDiv.style.backgroundColor = "#f8d7da";
+    messageDiv.style.color = "#721c24";
+    messageDiv.innerHTML = `✗ Error: ${data.error}`;
+  }
+};
+</script>
+
+</body>
+</html>

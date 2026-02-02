@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Initial Setup - QR Attendance</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+    }
+    .setup-container {
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+      width: 100%;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-top: 0;
+    }
+    .info {
+      background: #e3f2fd;
+      border-left: 4px solid #2196F3;
+      padding: 12px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      color: #1565c0;
+      font-size: 14px;
+    }
+    .form-group {
+      margin: 15px 0;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #333;
+      font-weight: bold;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 5px rgba(102, 126, 234, 0.5);
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    .message {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+  </style>
+</head>
+<body>
+
+<div class="setup-container">
+  <h1>🔐 Initial Setup</h1>
+  
+  <div class="info">
+    <strong>Welcome!</strong> This is the first admin account creation. After this, only admins can register new accounts.
+  </div>
+
+  <form id="setupForm">
+    <div class="form-group">
+      <label for="username">Admin Username:</label>
+      <input type="text" id="username" name="username" required placeholder="Enter admin username">
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password:</label>
+      <input type="password" id="password" name="password" required placeholder="Enter admin password">
+    </div>
+
+    <button type="submit">Create Admin Account</button>
+  </form>
+
+  <div id="message"></div>
+</div>
+
+<script>
+document.getElementById("setupForm").onsubmit = async function(e) {
+  e.preventDefault();
+
+  const formData = new FormData(this);
+  
+  try {
+    const response = await fetch("/setup", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await response.json();
+    const messageDiv = document.getElementById("message");
+
+    if (data.status === "success") {
+      messageDiv.className = "message success";
+      messageDiv.innerHTML = `<strong>✓ Success!</strong> ${data.message}<br><br><a href="/login" style="color: inherit; text-decoration: underline;">Go to Login</a>`;
+      document.getElementById("setupForm").reset();
+    } else {
+      messageDiv.className = "message error";
+      messageDiv.innerHTML = `<strong>✗ Error:</strong> ${data.error}`;
+    }
+  } catch (err) {
+    document.getElementById("message").className = "message error";
+    document.getElementById("message").innerHTML = `<strong>✗ Error:</strong> ${err.message}`;
+  }
+};
+</script>
+
+</body>
+</html>
