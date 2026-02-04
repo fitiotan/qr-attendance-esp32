@@ -5,22 +5,28 @@ from fastapi import FastAPI, UploadFile, Depends, Form
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 import socket
+import datetime
+import os
 
 from .auth import authenticate, hash_password
 from .database import SessionLocal, engine
-from .models import Base, User
+from .models import Base, User, QRCode
 from .scan import process_scan
 from .qr import generate_qr
 from fastapi.staticfiles import StaticFiles
 
 Base.metadata.create_all(bind=engine)
 
+# ESP32 Camera activation state
+esp32_active = False
+
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key="CHANGE_THIS_SECRET"
+    secret_key="CHANGE_THIS_SECRET",
+    max_age=900  # 15 minutes session timeout
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -36,6 +42,22 @@ def get_local_ip():
         return ip
     except:
         return "127.0.0.1"
+
+
+def cleanup_qr_codes():
+    """Delete all QR code files on startup"""
+    static_dir = "static"
+    if os.path.exists(static_dir):
+        for file in os.listdir(static_dir):
+            if file.startswith("qr_") and file.endswith(".png"):
+                try:
+                    os.remove(os.path.join(static_dir, file))
+                except:
+                    pass
+
+
+# Cleanup on server startup
+cleanup_qr_codes()
 
 
 def get_db():
@@ -166,6 +188,74 @@ def scan_qr(file: UploadFile, db: Session = Depends(get_db), request: Request = 
     return {"status": status, "message": message}
 
 
+@app.get("/admin/clients")
+def get_clients(request: Request, db: Session = Depends(get_db)):
+    """Get list of all client users for manual attendance"""
+    if "user_id" not in request.session or request.session.get("role") != "admin":
+        return {"error": "Unauthorized"}
+    
+    clients = db.query(User).filter(User.role == "client").all()
+    return [
+        {"id": client.id, "username": client.username}
+        for client in clients
+    ]
+
+
+@app.get("/admin/attendance")
+def get_attendance(request: Request, db: Session = Depends(get_db)):
+    """Get recent attendance records"""
+    if "user_id" not in request.session or request.session.get("role") != "admin":
+        return {"error": "Unauthorized"}
+    
+    from .models import Attendance
+    
+    # Get last 20 attendance records
+    records = db.query(Attendance).order_by(Attendance.scan_time.desc()).limit(20).all()
+    
+    result = []
+    for record in records:
+        user = db.query(User).filter(User.id == record.employee_id).first()
+        result.append({
+            "id": record.id,
+            "username": user.username if user else "Unknown",
+            "status": record.status,
+            "reason": record.reason,
+            "timestamp": record.scan_time.strftime("%Y-%m-%d %H:%M:%S") if record.scan_time else "N/A"
+        })
+    
+    return result
+
+
+@app.post("/admin/manual-attendance")
+def manual_attendance(
+    client_id: int = Form(...),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """Record attendance manually without QR code"""
+    if "user_id" not in request.session or request.session.get("role") != "admin":
+        return {"error": "Unauthorized"}
+    
+    # Verify client exists
+    client = db.query(User).filter(User.id == client_id, User.role == "client").first()
+    if not client:
+        return {"error": "Client not found"}
+    
+    # Record attendance
+    from .models import Attendance
+    import datetime
+    
+    attendance = Attendance(
+        employee_id=client_id,
+        status="OK",
+        reason="Manual entry"
+    )
+    db.add(attendance)
+    db.commit()
+    
+    return {"status": "success", "message": f"Attendance recorded for {client.username}"}
+
+
 @app.get("/admin/register", response_class=HTMLResponse)
 def admin_register_page(request: Request, db: Session = Depends(get_db)):
     if "user_id" not in request.session or request.session.get("role") != "admin":
@@ -238,12 +328,81 @@ def esp32_info():
     }
 
 
+@app.get("/esp32/status")
+def esp32_status():
+    """Check if ESP32 should be active"""
+    global esp32_active
+    return {"active": esp32_active}
+
+
+@app.post("/esp32/activate")
+def esp32_activate(request: Request):
+    """Activate ESP32 camera"""
+    global esp32_active
+    if "user_id" not in request.session or request.session.get("role") != "admin":
+        return {"error": "Unauthorized"}
+    esp32_active = True
+    return {"status": "activated"}
+
+
+@app.post("/esp32/deactivate")
+def esp32_deactivate(request: Request):
+    """Deactivate ESP32 camera"""
+    global esp32_active
+    if "user_id" not in request.session or request.session.get("role") != "admin":
+        return {"error": "Unauthorized"}
+    esp32_active = False
+    return {"status": "deactivated"}
+
+
 @app.post("/esp32/upload")
-def esp32_upload(file: UploadFile, db: Session = Depends(get_db)):
+async def esp32_upload(request: Request, db: Session = Depends(get_db)):
     """
-    Endpoint for ESP32 cam to upload QR code image
-    Usage: POST /esp32/upload with image file
+    Endpoint for ESP32 cam to upload QR code image (raw JPEG)
+    Usage: POST /esp32/upload with raw image bytes
     Returns: {"status": "OK" or "REJECTED", "message": "..."}
     """
-    status, message = process_scan(file, db)
+    from fastapi import UploadFile
+    from io import BytesIO
+    import shutil
+    
+    # Read raw image bytes
+    image_bytes = await request.body()
+    
+    # Save latest frame for live preview
+    try:
+        with open("static/esp32_latest.jpg", "wb") as f:
+            f.write(image_bytes)
+    except:
+        pass
+    
+    # Create UploadFile object for processing
+    file_obj = BytesIO(image_bytes)
+    upload_file = UploadFile(filename="frame.jpg", file=file_obj)
+    
+    # Process the scan
+    status, message = process_scan(upload_file, db)
+    
     return {"status": status, "message": message}
+
+
+@app.get("/esp32/stream")
+def esp32_stream():
+    """Get the latest frame from ESP32 camera"""
+    from fastapi.responses import FileResponse
+    import os
+    
+    frame_path = "static/esp32_latest.jpg"
+    if os.path.exists(frame_path):
+        return FileResponse(
+            frame_path, 
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+    
+    # Return a placeholder if no frame yet
+    return {"message": "No frame available yet"}

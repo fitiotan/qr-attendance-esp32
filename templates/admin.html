@@ -1,62 +1,532 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QR Attendance - Admin</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 10px;
+    }
+    .container { 
+      max-width: 1000px; 
+      margin: 0 auto;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .header h1 { font-size: 24px; margin-bottom: 10px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .nav-links {
+      margin-top: 15px;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .nav-links a {
+      color: white;
+      text-decoration: none;
+      padding: 8px 15px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 5px;
+      transition: all 0.3s;
+    }
+    .nav-links a:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    .content { padding: 30px; }
+    .tabs { 
+      display: flex; 
+      gap: 10px; 
+      margin-bottom: 25px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .tab-btn { 
+      padding: 12px 25px; 
+      background: #f0f0f0; 
+      border: none; 
+      cursor: pointer; 
+      border-radius: 5px 5px 0 0;
+      font-size: 16px;
+      font-weight: 500;
+      transition: all 0.3s;
+      color: #666;
+    }
+    .tab-btn:hover {
+      background: #e0e0e0;
+    }
+    .tab-btn.active { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; 
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s; }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .section { 
+      background: #f9f9f9;
+      padding: 20px; 
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .section h2 {
+      color: #333;
+      margin-bottom: 15px;
+    }
+    .section p {
+      color: #666;
+      margin-bottom: 15px;
+    }
+    .esp32-section {
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 2px dashed #667eea;
+    }
+    .esp32-section p {
+      color: #333;
+      font-weight: 500;
+    }
+    select, input[type="text"], input[type="file"] {
+      padding: 12px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 400px;
+      border: 2px solid #e0e0e0;
+      border-radius: 5px;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    select:focus, input:focus {
+      border-color: #667eea;
+      outline: none;
+      box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+    }
+    button {
+      padding: 12px 25px;
+      margin: 10px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 15px;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    .result { 
+      margin-top: 20px; 
+      padding: 15px; 
+      border-radius: 5px;
+      display: none;
+      animation: slideDown 0.3s;
+    }
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .result.success { 
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      color: #155724; 
+      border-left: 4px solid #28a745;
+    }
+    .result.error { 
+      background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+      color: #721c24;
+      border-left: 4px solid #dc3545;
+    }
+    .result a {
+      color: inherit;
+      text-decoration: underline;
+      font-weight: bold;
+    }
+    .result small {
+      display: block;
+      margin-top: 10px;
+      opacity: 0.8;
+    }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      body { padding: 5px; }
+      .header { padding: 15px; }
+      .header h1 { font-size: 20px; }
+      .header p { font-size: 12px; }
+      .content { padding: 15px; }
+      .nav-links { flex-direction: column; gap: 8px; }
+      .nav-links a { padding: 6px 12px; font-size: 13px; }
+      .tabs { 
+        flex-wrap: wrap; 
+        gap: 5px; 
+        overflow-x: auto;
+      }
+      .tab-btn { 
+        padding: 10px 15px; 
+        font-size: 14px;
+        flex: 1;
+        min-width: 100px;
+      }
+      .section { padding: 15px; }
+      .section h2 { font-size: 18px; }
+      .section p { font-size: 14px; }
+      select, input { font-size: 16px; max-width: 100%; }
+      button { 
+        padding: 12px 20px; 
+        font-size: 14px;
+        width: 100%;
+        margin: 5px 0;
+      }
+      #liveStream { max-height: 300px !important; }
+      table { font-size: 12px; }
+      table th, table td { padding: 8px 5px !important; }
+    }
+    
+    @media (max-width: 480px) {
+      .header h1 { font-size: 18px; }
+      .tab-btn { padding: 8px 10px; font-size: 12px; min-width: 80px; }
+      .section h2 { font-size: 16px; }
+      table { font-size: 11px; }
+      table th, table td { padding: 6px 3px !important; }
+    }
+  </style>
 </head>
 <body>
 
-<h1>QR Attendance System</h1>
-<p>Logged in as: <strong>{{ username }}</strong> (Admin)</p>
-<div style="margin-bottom: 10px;">
-  <a href="/admin/register" style="margin-right: 10px;">Register New Client</a>
-  <a href="/logout">Logout</a>
+<div class="container">
+  <div class="header">
+    <h1>QR Attendance System</h1>
+    <p>Admin Control Panel</p>
+    <div class="nav-links">
+      <span>Logged in as: <strong>{{ username }}</strong></span>
+      <a href="/admin/register">➕ Register New Client</a>
+      <a href="/logout">🚪 Logout</a>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Tab Navigation -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('esp32-scan', event)">ESP32 Scan</button>
+      <button class="tab-btn" onclick="switchTab('manual-entry', event)">Manual Entry</button>
+      <button class="tab-btn" onclick="switchTab('attendance-log', event)">Attendance Log</button>
+    </div>
+
+    <!-- ESP32 Scan Tab -->
+    <div id="esp32-scan" class="tab-content active">
+      <div class="section">
+        <h2>Scan QR Code with ESP32 Camera</h2>
+        <p>Use your ESP32 camera connected via WiFi to automatically scan and record attendance.</p>
+        <div class="esp32-section">
+          <p>ESP32 Camera: Ready (activates on demand)</p>
+          <button onclick="activateESP32()">Activate ESP32 Camera</button>
+          <p style="font-size: 13px; margin-top: 10px;">Camera will only turn on when you click the button. Click "Stop Camera" to turn it off.</p>
+          <div id="esp32-preview" style="margin-top: 20px;"></div>
+        </div>
+        <div id="esp32-result" class="result"></div>
+      </div>
+    </div>
+
+    <!-- Manual Attendance Tab -->
+    <div id="manual-entry" class="tab-content">
+      <div class="section">
+        <h2>Record Attendance Manually</h2>
+        <p>Select a client and record attendance without scanning a QR code.</p>
+        <div>
+          <label for="clientSelect">Select Client:</label>
+          <select id="clientSelect">
+            <option value="">Loading clients...</option>
+          </select>
+          <button onclick="recordManualAttendance()">✅ Record Attendance</button>
+        </div>
+        <div id="manual-result" class="result"></div>
+      </div>
+    </div>
+
+    <!-- Attendance Log Tab -->
+    <div id="attendance-log" class="tab-content">
+      <div class="section">
+        <h2>Attendance Records (Last 20)</h2>
+        <p>Live attendance log showing recent check-ins.</p>
+        <button onclick="loadAttendance()">🔄 Refresh</button>
+        <div id="attendance-table" style="margin-top: 20px; overflow-x: auto;">
+          <p>Loading attendance records...</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-<hr>
-
-<h2>Scan QR Code for Attendance</h2>
-<p>Upload a photo of the QR code to record attendance.</p>
-
-<div style="margin: 20px 0;">
-  <input type="file" id="qrFile" accept="image/*" />
-  <button onclick="scanQR()">Scan QR Code</button>
-</div>
-
-<div id="result" style="margin-top: 20px; padding: 10px; border-radius: 5px;"></div>
 
 <script>
-function scanQR() {
-  const fileInput = document.getElementById("qrFile");
-  if (!fileInput.files.length) {
-    alert("Please select an image file");
+// Tab switching
+function switchTab(tabName, event) {
+  event.preventDefault();
+  const contents = document.querySelectorAll('.tab-content');
+  contents.forEach(c => c.classList.remove('active'));
+  document.getElementById(tabName).classList.add('active');
+  
+  const buttons = document.querySelectorAll('.tab-btn');
+  buttons.forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  // Auto-load attendance when switching to that tab
+  if (tabName === 'attendance-log') {
+    loadAttendance();
+  }
+}
+  buttons.forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  // Load clients when manual entry tab is opened
+  if (tabName === 'manual-entry') {
+    loadClients();
+  }
+
+
+// Load clients for manual entry
+function loadClients() {
+  fetch('/admin/clients')
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+      const select = document.getElementById('clientSelect');
+      select.innerHTML = '<option value="">Select a client...</option>';
+      data.forEach(client => {
+        const option = document.createElement('option');
+        option.value = client.id;
+        option.textContent = client.username;
+        select.appendChild(option);
+      });
+    })
+    .catch(err => console.error(err));
+}
+
+// Activate ESP32 camera
+let scanCheckInterval;
+let lastScanMessage = "";
+
+async function activateESP32() {
+  const resultDiv = document.getElementById('esp32-result');
+  const previewDiv = document.getElementById('esp32-preview');
+  resultDiv.style.display = 'block';
+  resultDiv.className = 'result';
+  resultDiv.innerHTML = 'Activating ESP32 camera...';
+  
+  // Send activation command to server
+  try {
+    const response = await fetch('/esp32/activate', { method: 'POST' });
+    const data = await response.json();
+    
+    if (data.error) {
+      resultDiv.className = 'result error';
+      resultDiv.innerHTML = '✗ Error: ' + data.error;
+      return;
+    }
+  } catch (error) {
+    resultDiv.className = 'result error';
+    resultDiv.innerHTML = '✗ Failed to activate ESP32';
+    return;
+  }
+  
+  // Show live feed with auto-refresh
+  previewDiv.innerHTML = `
+    <div style="text-align: center;">
+      <img id="liveStream" 
+        src="/esp32/stream?t=${Date.now()}" 
+        style="max-width: 100%; max-height: 500px; border: 2px solid #667eea; border-radius: 8px; display: block; margin: 10px auto;">
+      <p style="font-size: 13px; color: #666; margin-top: 10px;">
+        Live camera feed (auto-updates every second)
+      </p>
+      <button onclick="deactivateESP32()" style="margin-top: 10px; background: linear-gradient(135deg, #f56565 0%, #c53030 100%);">
+        Stop Camera
+      </button>
+    </div>
+  `;
+  
+  // Auto-refresh the image every 1 second
+  setInterval(() => {
+    const img = document.getElementById('liveStream');
+    if (img) {
+      img.src = '/esp32/stream?t=' + Date.now() + '&cache=' + Math.random();
+    }
+  }, 1000);
+  
+  resultDiv.className = 'result success';
+  resultDiv.innerHTML = '✓ ESP32 camera activated. Point camera at QR codes to scan.';
+  
+  // Poll for scan results every 2 seconds
+  if (scanCheckInterval) clearInterval(scanCheckInterval);
+  scanCheckInterval = setInterval(checkForScans, 2000);
+}
+
+// Deactivate ESP32 camera
+async function deactivateESP32() {
+  const resultDiv = document.getElementById('esp32-result');
+  const previewDiv = document.getElementById('esp32-preview');
+  
+  // Send deactivation command
+  await fetch('/esp32/deactivate', { method: 'POST' });
+  
+  // Clear intervals
+  if (scanCheckInterval) {
+    clearInterval(scanCheckInterval);
+    scanCheckInterval = null;
+  }
+  
+  // Clear preview
+  previewDiv.innerHTML = '';
+  resultDiv.className = 'result';
+  resultDiv.innerHTML = 'ESP32 camera stopped.';
+}
+
+// Check for new scans from ESP32
+async function checkForScans() {
+  try {
+    const response = await fetch('/admin/attendance');
+    const records = await response.json();
+    
+    if (records && records.length > 0) {
+      const latestScan = records[0];
+      const scanMessage = `${latestScan.username} - ${latestScan.timestamp}`;
+      
+      // Only update if this is a new scan
+      if (scanMessage !== lastScanMessage) {
+        lastScanMessage = scanMessage;
+        const resultDiv = document.getElementById('esp32-result');
+        
+        if (latestScan.reason === 'ESP32 Scan') {
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `✓ SUCCESS: ${latestScan.username} recorded at ${latestScan.timestamp}`;
+          
+          // Auto-clear after 5 seconds
+          setTimeout(() => {
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = '✓ Live camera feed active. Point camera at QR codes to scan.';
+          }, 5000);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking scans:', error);
+  }
+}
+
+// Record manual attendance
+function recordManualAttendance() {
+  const clientId = document.getElementById('clientSelect').value;
+  if (!clientId) {
+    alert('Please select a client');
     return;
   }
 
   const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
+  formData.append('client_id', clientId);
 
-  fetch(`/scan`, {
-    method: "POST",
+  const resultDiv = document.getElementById('manual-result');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = 'Recording attendance...';
+
+  fetch('/admin/manual-attendance', {
+    method: 'POST',
     body: formData
   })
   .then(res => res.json())
   .then(data => {
-    const resultDiv = document.getElementById("result");
-    if (data.status === "OK") {
-      resultDiv.style.backgroundColor = "#d4edda";
-      resultDiv.style.color = "#155724";
-      resultDiv.innerHTML = `✓ Success: ${data.message}`;
+    if (data.status === 'success') {
+      resultDiv.className = 'result success';
+      resultDiv.innerHTML = `${data.message}`;
+      document.getElementById('clientSelect').value = '';
     } else {
-      resultDiv.style.backgroundColor = "#f8d7da";
-      resultDiv.style.color = "#721c24";
-      resultDiv.innerHTML = `✗ Failed: ${data.message}`;
+      resultDiv.className = 'result error';
+      resultDiv.innerHTML = `Error: ${data.error}`;
     }
   })
   .catch(err => {
-    console.error(err);
-    document.getElementById("result").innerHTML = `Error: ${err}`;
+    resultDiv.className = 'result error';
+    resultDiv.innerHTML = `Error: ${err}`;
   });
 }
+
+// Load attendance records
+function loadAttendance() {
+  fetch('/admin/attendance')
+    .then(res => res.json())
+    .then(data => {
+      const tableDiv = document.getElementById('attendance-table');
+      
+      if (data.error) {
+        tableDiv.innerHTML = '<p style="color: red;">Error loading attendance</p>';
+        return;
+      }
+      
+      if (data.length === 0) {
+        tableDiv.innerHTML = '<p>No attendance records yet.</p>';
+        return;
+      }
+      
+      let html = '<table style="width: 100%; border-collapse: collapse;">';
+      html += '<thead><tr style="background: #667eea; color: white;">';
+      html += '<th style="padding: 12px; text-align: left;">ID</th>';
+      html += '<th style="padding: 12px; text-align: left;">Client</th>';
+      html += '<th style="padding: 12px; text-align: left;">Status</th>';
+      html += '<th style="padding: 12px; text-align: left;">Method</th>';
+      html += '<th style="padding: 12px; text-align: left;">Time</th>';
+      html += '</tr></thead><tbody>';
+      
+      data.forEach((record, index) => {
+        const bgColor = index % 2 === 0 ? '#f9f9f9' : 'white';
+        const statusColor = record.status === 'OK' ? '#4CAF50' : '#f44336';
+        html += `<tr style="background: ${bgColor};">`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.id}</td>`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>${record.username}</strong></td>`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd; color: ${statusColor}; font-weight: bold;">${record.status}</td>`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.reason}</td>`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.timestamp}</td>`;
+        html += '</tr>';
+      });
+      
+      html += '</tbody></table>';
+      tableDiv.innerHTML = html;
+    })
+    .catch(err => {
+      document.getElementById('attendance-table').innerHTML = '<p style="color: red;">Error: ' + err.message + '</p>';
+    });
+}
+
+// Load clients on page load
+window.addEventListener('load', loadClients);
 </script>
 
 </body>

@@ -26,11 +26,17 @@ def process_scan(file: UploadFile, db: Session):
     if qr.used:
         return "REJECTED", "QR already used"
 
-    if datetime.datetime.utcnow() > qr.expires_at:
+    if datetime.datetime.now() > qr.expires_at:
         return "REJECTED", "QR expired"
 
     qr.used = True
-    db.add(Attendance(employee_id=emp_id, status="OK", reason=""))
+    attendance = Attendance(employee_id=emp_id, status="present", reason="ESP32 Scan")
+    db.add(attendance)
     db.commit()
+    
+    # Get username for confirmation
+    from .models import User
+    user = db.query(User).filter(User.id == int(emp_id)).first()
+    username = user.username if user else f"ID:{emp_id}"
 
-    return "OK", "Attendance recorded"
+    return "OK", f"✓ {username} - Attendance recorded at {datetime.datetime.now().strftime('%H:%M:%S')}"

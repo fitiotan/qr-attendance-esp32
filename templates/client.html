@@ -1,24 +1,134 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QR Attendance - Client</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 10px;
+    }
+    .container { 
+      max-width: 700px; 
+      margin: 20px auto;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .header h1 { font-size: 24px; margin-bottom: 10px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .header a {
+      color: white;
+      text-decoration: none;
+      padding: 8px 15px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 5px;
+      display: inline-block;
+      margin-top: 10px;
+      transition: all 0.3s;
+    }
+    .header a:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    .content {
+      padding: 30px;
+      text-align: center;
+    }
+    .content h2 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 22px;
+    }
+    .content p {
+      color: #666;
+      margin-bottom: 20px;
+    }
+    button { 
+      width: 100%; 
+      max-width: 400px;
+      padding: 15px; 
+      font-size: 16px; 
+      margin: 10px auto;
+      cursor: pointer;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-weight: 500;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      display: block;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    #qrBox { 
+      margin: 20px auto;
+      text-align: center;
+    }
+    #qrBox img { 
+      max-width: 300px; 
+      width: 100%; 
+      border: 2px solid #667eea;
+      padding: 10px; 
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    #timer {
+      font-size: 16px;
+      color: #667eea;
+      font-weight: 500;
+      margin-top: 15px;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 5px;
+      display: inline-block;
+    }
+    @media (max-width: 480px) {
+      .header h1 { font-size: 20px; }
+      .content h2 { font-size: 18px; }
+      .content { padding: 20px; }
+      .content p, #timer { font-size: 14px; }
+    }
+  </style>
 </head>
 <body>
 
-<h1>QR Attendance System</h1>
-<p>Logged in as: <strong>{{ username }}</strong> (Client)</p>
-<a href="/logout">Logout</a>
-<hr>
+<div class="container">
+  <div class="header">
+    <h1>QR Attendance System</h1>
+    <p>Logged in as: <strong>{{ username }}</strong> (Client)</p>
+    <a href="/logout">Logout</a>
+  </div>
 
-<h2>Your QR Code for Attendance</h2>
-<p>Show this QR code to the admin to record your attendance (valid for 1 minute).</p>
+  <div class="content">
+    <h2>Your QR Code for Attendance</h2>
+    <p>Show this QR code to the admin to record your attendance (valid for 1 minute).</p>
 
-<button onclick="generateQR()">Generate New QR Code</button>
+    <button onclick="generateQR()">Generate New QR Code</button>
 
-<div id="qrBox" style="margin-top: 20px;"></div>
+    <div id="qrBox"></div>
+    <div id="timer"></div>
+  </div>
+</div>
 
 <script>
+let qrRefreshInterval;
+
 function generateQR() {
   fetch(`/generate_qr`, {
     method: "POST"
@@ -30,9 +140,29 @@ function generateQR() {
       return;
     }
     document.getElementById("qrBox").innerHTML =
-      `<img src="/${data.qr_path}" width="300" style="border: 2px solid #333; padding: 10px;">`;
+      `<img src="/static/${data.qr_path}" style="max-width: 300px; width: 100%; border: 2px solid #333; padding: 10px; border-radius: 5px;">`;
+    
+    // Clear old interval and start new one
+    clearInterval(qrRefreshInterval);
+    startQRTimer();
   })
   .catch(err => console.error(err));
+}
+
+function startQRTimer() {
+  let remaining = 60;
+  document.getElementById("timer").innerHTML = `QR expires in: ${remaining}s`;
+  
+  qrRefreshInterval = setInterval(() => {
+    remaining--;
+    document.getElementById("timer").innerHTML = `QR expires in: ${remaining}s`;
+    
+    if (remaining <= 0) {
+      document.getElementById("qrBox").innerHTML = '';
+      document.getElementById("timer").innerHTML = 'QR code expired. Click button to generate new one.';
+      clearInterval(qrRefreshInterval);
+    }
+  }, 1000);
 }
 
 // Generate QR on page load

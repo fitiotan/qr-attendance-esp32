@@ -21,7 +21,7 @@ class Attendance(Base):
     __tablename__ = "attendance"
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer)
-    scan_time = Column(DateTime, default=datetime.datetime.utcnow)
+    scan_time = Column(DateTime, default=datetime.datetime.now)
     status = Column(String)
     reason = Column(String)
 
