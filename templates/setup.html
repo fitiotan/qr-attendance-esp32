@@ -154,15 +154,15 @@ document.getElementById("setupForm").onsubmit = async function(e) {
 
     if (data.status === "success") {
       messageDiv.className = "message success";
-      messageDiv.innerHTML = `<strong>✓ Success!</strong> ${data.message}<br><br><a href="/login" style="color: inherit; text-decoration: underline;">Go to Login</a>`;
+      messageDiv.innerHTML = `<strong>[SUCCESS]</strong> ${data.message}<br><br><a href="/login" style="color: inherit; text-decoration: underline;">Go to Login</a>`;
       document.getElementById("setupForm").reset();
     } else {
       messageDiv.className = "message error";
-      messageDiv.innerHTML = `<strong>✗ Error:</strong> ${data.error}`;
+      messageDiv.innerHTML = `<strong>[ERROR]</strong> ${data.error}`;
     }
   } catch (err) {
     document.getElementById("message").className = "message error";
-    document.getElementById("message").innerHTML = `<strong>✗ Error:</strong> ${err.message}`;
+    document.getElementById("message").innerHTML = `<strong>[ERROR]</strong> ${err.message}`;
   }
 };
 </script>

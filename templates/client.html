@@ -58,15 +58,15 @@
     button { 
       width: 100%; 
       max-width: 400px;
-      padding: 15px; 
+      padding: 16px; 
       font-size: 16px; 
-      margin: 10px auto;
+      margin: 12px auto;
       cursor: pointer;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
-      border-radius: 5px;
-      font-weight: 500;
+      border-radius: 8px;
+      font-weight: 600;
       transition: all 0.3s;
       box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
       display: block;
@@ -74,6 +74,18 @@
     button:hover {
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    .logout-btn {
+      background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+      box-shadow: 0 4px 15px rgba(245, 101, 101, 0.4);
+      max-width: 200px;
+      margin-top: 20px;
+    }
+    .logout-btn:hover {
+      box-shadow: 0 6px 20px rgba(245, 101, 101, 0.6);
     }
     #qrBox { 
       margin: 20px auto;
@@ -111,23 +123,46 @@
 <div class="container">
   <div class="header">
     <h1>QR Attendance System</h1>
-    <p>Logged in as: <strong>{{ username }}</strong> (Client)</p>
-    <a href="/logout">Logout</a>
+    <p>Logged in as: <strong>{{ username }}</strong></p>
   </div>
 
   <div class="content">
-    <h2>Your QR Code for Attendance</h2>
-    <p>Show this QR code to the admin to record your attendance (valid for 1 minute).</p>
+    <h2 id="qrTitle">Your QR Code for Attendance</h2>
+    <p id="qrDescription">Show this QR code to the admin to record your attendance (valid for 1 minute).</p>
 
-    <button onclick="generateQR()">Generate New QR Code</button>
+    <button onclick="generateQR()" id="generateBtn">Generate New QR Code</button>
 
     <div id="qrBox"></div>
     <div id="timer"></div>
+
+    <a href="/logout" style="display: block; margin-top: 30px;">
+      <button class="logout-btn">Logout</button>
+    </a>
   </div>
 </div>
 
 <script>
 let qrRefreshInterval;
+
+function checkStatus() {
+  fetch('/client/check-status')
+    .then(res => res.json())
+    .then(data => {
+      const title = document.getElementById('qrTitle');
+      const description = document.getElementById('qrDescription');
+      const button = document.getElementById('generateBtn');
+      
+      if (data.checked_in) {
+        title.textContent = 'Check Out QR Code';
+        description.textContent = 'Show this QR code to the admin to record your check-out (valid for 1 minute).';
+        button.textContent = 'Generate Check Out QR Code';
+      } else {
+        title.textContent = 'Check In QR Code';
+        description.textContent = 'Show this QR code to the admin to record your check-in (valid for 1 minute).';
+        button.textContent = 'Generate Check In QR Code';
+      }
+    });
+}
 
 function generateQR() {
   fetch(`/generate_qr`, {
@@ -161,13 +196,20 @@ function startQRTimer() {
       document.getElementById("qrBox").innerHTML = '';
       document.getElementById("timer").innerHTML = 'QR code expired. Click button to generate new one.';
       clearInterval(qrRefreshInterval);
+      
+      // Check if status changed (they scanned a QR) and update UI
+      checkStatus();
     }
   }, 1000);
 }
 
-// Generate QR on page load
+// Check status and generate QR on page load
 window.onload = function() {
+  checkStatus();
   generateQR();
+  
+  // Periodically check status every 5 seconds to detect check-in/check-out changes
+  setInterval(checkStatus, 5000);
 };
 </script>
 

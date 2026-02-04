@@ -196,7 +196,11 @@
         flex: 1;
         min-width: 100px;
       }
-      .section { padding: 15px; }
+      .section { 
+        padding: 15px;
+        flex-direction: column !important;
+      }
+      .esp32-section { min-width: auto !important; }
       .section h2 { font-size: 18px; }
       .section p { font-size: 14px; }
       select, input { font-size: 16px; max-width: 100%; }
@@ -207,6 +211,7 @@
         margin: 5px 0;
       }
       #liveStream { max-height: 300px !important; }
+      #attendance-table { max-height: 400px !important; }
       table { font-size: 12px; }
       table th, table td { padding: 8px 5px !important; }
     }
@@ -242,25 +247,24 @@
 
     <!-- Scan & Log Combined Tab -->
     <div id="scan-and-log" class="tab-content active">
-      <div class="section">
-        <h2>ESP32 Camera & Live Attendance Log</h2>
+      <div class="section" style="display: flex; gap: 20px; flex-wrap: wrap;">
         
-        <!-- Camera Section -->
-        <div class="esp32-section">
-          <p>ESP32 Camera: Ready (activates on demand)</p>
+        <!-- Camera Section (Left) -->
+        <div class="esp32-section" style="flex: 1; min-width: 400px;">
+          <h3 style="margin-bottom: 15px;">ESP32 Camera</h3>
           <button onclick="activateESP32()">Activate ESP32 Camera</button>
           <p style="font-size: 13px; margin-top: 10px;">Camera will turn on when you click the button.</p>
           <div id="esp32-preview" style="margin-top: 20px;"></div>
           <div id="esp32-result" class="result"></div>
         </div>
         
-        <!-- Live Attendance Log -->
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+        <!-- Live Attendance Log (Right) -->
+        <div style="flex: 1; min-width: 400px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h2 style="margin: 0;">Live Attendance Log (Last 20)</h2>
+            <h3 style="margin: 0;">Live Attendance Log (Last 20)</h3>
             <button onclick="loadAttendance()" style="padding: 8px 16px; font-size: 14px;">🔄 Refresh</button>
           </div>
-          <div id="attendance-table" style="overflow-x: auto;">
+          <div id="attendance-table" style="overflow-x: auto; max-height: 600px; border: 1px solid #ddd; border-radius: 8px;">
             <p>Loading attendance records...</p>
           </div>
         </div>
@@ -271,13 +275,14 @@
     <div id="manual-entry" class="tab-content">
       <div class="section">
         <h2>Record Attendance Manually</h2>
-        <p>Select a client and record attendance without scanning a QR code.</p>
+        <p>Select a client and record check-in or check-out attendance.</p>
         <div>
           <label for="clientSelect">Select Client:</label>
           <select id="clientSelect">
             <option value="">Loading clients...</option>
           </select>
-          <button onclick="recordManualAttendance()">✅ Record Attendance</button>
+          <button onclick="recordManualCheckIn()">Check In</button>
+          <button onclick="recordManualCheckOut()">Check Out</button>
         </div>
         <div id="manual-result" class="result"></div>
       </div>
@@ -302,13 +307,18 @@ function switchTab(tabName, event) {
   // Load appropriate data for each tab
   if (tabName === 'manual-entry') {
     loadClients();
+    // Stop auto-refresh when switching away
+    if (window.attendanceInterval) {
+      clearInterval(window.attendanceInterval);
+      window.attendanceInterval = null;
+    }
   }
   if (tabName === 'scan-and-log') {
     loadAttendance();
-    // Auto-refresh attendance log every 5 seconds
+    // Auto-refresh attendance log every 2 seconds when on this tab
     if (window.attendanceInterval) clearInterval(window.attendanceInterval);
-    window.attendanceInterval = setInterval(loadAttendance, 5000);
-  } else {
+    window.attendanceInterval = setInterval(loadAttendance, 2000);
+  } else if (tabName !== 'manual-entry') {
     // Stop auto-refresh when switching away
     if (window.attendanceInterval) {
       clearInterval(window.attendanceInterval);
@@ -365,19 +375,19 @@ async function activateESP32() {
     
     if (data.error) {
       resultDiv.className = 'result error';
-      resultDiv.innerHTML = '✗ Error: ' + data.error;
+      resultDiv.innerHTML = '[ERROR] ' + data.error;
       return;
     }
     
     if (response.status !== 200) {
       resultDiv.className = 'result error';
-      resultDiv.innerHTML = '✗ Server returned error (check console)';
+      resultDiv.innerHTML = '[ERROR] Server returned error (check console)';
       return;
     }
   } catch (error) {
     console.error('Activation error:', error);
     resultDiv.className = 'result error';
-    resultDiv.innerHTML = '✗ Failed to activate ESP32: ' + error.message;
+    resultDiv.innerHTML = '[ERROR] Failed to activate ESP32: ' + error.message;
     return;
   }
   
@@ -446,7 +456,7 @@ async function checkForScans() {
     
     if (records && records.length > 0) {
       const latestScan = records[0];
-      const scanMessage = `${latestScan.username} - ${latestScan.timestamp}`;
+      const scanMessage = `${latestScan.username} - ${latestScan.check_in}`;
       
       // Only update if this is a new scan
       if (scanMessage !== lastScanMessage) {
@@ -455,9 +465,12 @@ async function checkForScans() {
         
         if (latestScan.reason === 'ESP32 Scan') {
           resultDiv.className = 'result success';
-          resultDiv.innerHTML = `✓ SUCCESS: ${latestScan.username} recorded at ${latestScan.timestamp}`;
+          resultDiv.innerHTML = `✓ SUCCESS: ${latestScan.username} recorded at ${latestScan.check_in}`;
           
-          // Auto-clear after 5 seconds
+          // Refresh attendance log immediately
+          loadAttendance();
+          
+          // Auto-clear message after 5 seconds
           setTimeout(() => {
             resultDiv.className = 'result success';
             resultDiv.innerHTML = '✓ Live camera feed active. Point camera at QR codes to scan.';
@@ -471,6 +484,80 @@ async function checkForScans() {
 }
 
 // Record manual attendance
+function recordManualCheckIn() {
+  const clientId = document.getElementById('clientSelect').value;
+  if (!clientId) {
+    alert('Please select a client');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('client_id', clientId);
+  formData.append('action', 'check_in');
+
+  const resultDiv = document.getElementById('manual-result');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = 'Recording check-in...';
+
+  fetch('/admin/manual-attendance', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === 'success') {
+      resultDiv.className = 'result success';
+      resultDiv.innerHTML = `[SUCCESS] ${data.message}`;
+      document.getElementById('clientSelect').value = '';
+      loadAttendance();
+    } else {
+      resultDiv.className = 'result error';
+      resultDiv.innerHTML = `[ERROR] ${data.error}`;
+    }
+  })
+  .catch(err => {
+    resultDiv.className = 'result error';
+    resultDiv.innerHTML = `[ERROR] ${err}`;
+  });
+}
+
+function recordManualCheckOut() {
+  const clientId = document.getElementById('clientSelect').value;
+  if (!clientId) {
+    alert('Please select a client');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('client_id', clientId);
+  formData.append('action', 'check_out');
+
+  const resultDiv = document.getElementById('manual-result');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = 'Recording check-out...';
+
+  fetch('/admin/manual-attendance', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === 'success') {
+      resultDiv.className = 'result success';
+      resultDiv.innerHTML = `[SUCCESS] ${data.message}`;
+      document.getElementById('clientSelect').value = '';
+      loadAttendance();
+    } else {
+      resultDiv.className = 'result error';
+      resultDiv.innerHTML = `[ERROR] ${data.error}`;
+    }
+  })
+  .catch(err => {
+    resultDiv.className = 'result error';
+    resultDiv.innerHTML = `[ERROR] ${err}`;
+  });
+}
+
 function recordManualAttendance() {
   const clientId = document.getElementById('clientSelect').value;
   if (!clientId) {
@@ -549,8 +636,14 @@ function loadAttendance() {
     });
 }
 
-// Load clients on page load
-window.addEventListener('load', loadClients);
+// Load data on page load
+window.addEventListener('load', function() {
+  loadAttendance();
+  loadClients();
+  // Auto-refresh attendance log every 2 seconds
+  if (window.attendanceInterval) clearInterval(window.attendanceInterval);
+  window.attendanceInterval = setInterval(loadAttendance, 2000);
+});
 </script>
 
 </body>

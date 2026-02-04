@@ -151,6 +151,14 @@ def setup_admin(
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(get_db)):
+    # If already logged in, redirect to appropriate dashboard
+    if "user_id" in request.session:
+        role = request.session.get("role")
+        if role == "admin":
+            return RedirectResponse("/admin", status_code=302)
+        else:
+            return RedirectResponse("/client", status_code=302)
+    
     # If no admin exists, redirect to setup
     admin_exists = db.query(User).filter(User.role == "admin").first()
     if not admin_exists:
@@ -255,10 +263,11 @@ def get_attendance(request: Request, db: Session = Depends(get_db)):
 @app.post("/admin/manual-attendance")
 def manual_attendance(
     client_id: int = Form(...),
+    action: str = Form(default="check_in"),
     db: Session = Depends(get_db),
     request: Request = None
 ):
-    """Record attendance manually without QR code"""
+    """Record attendance manually with check-in/check-out support"""
     if "user_id" not in request.session or request.session.get("role") != "admin":
         return {"error": "Unauthorized"}
     
@@ -267,19 +276,48 @@ def manual_attendance(
     if not client:
         return {"error": "Client not found"}
     
-    # Record attendance
-    from .models import Attendance
     import datetime
+    today = datetime.date.today()
     
-    attendance = Attendance(
-        employee_id=client_id,
-        status="OK",
-        reason="Manual entry"
-    )
-    db.add(attendance)
-    db.commit()
+    if action == "check_out":
+        # Check-out: look for existing check-in without check-out
+        existing_record = db.query(Attendance).filter(
+            Attendance.employee_id == client_id,
+            Attendance.check_in >= datetime.datetime.combine(today, datetime.time.min),
+            Attendance.check_in < datetime.datetime.combine(today + datetime.timedelta(days=1), datetime.time.min),
+            Attendance.check_out == None
+        ).first()
+        
+        if not existing_record:
+            return {"error": "No check-in found for today"}
+        
+        existing_record.check_out = datetime.datetime.now()
+        existing_record.status = "checked_out"
+        db.add(existing_record)
+        db.commit()
+        return {"status": "success", "message": f"{client.username} - Checked out at {datetime.datetime.now().strftime('%H:%M:%S')}"}
     
-    return {"status": "success", "message": f"Attendance recorded for {client.username}"}
+    else:  # check_in
+        # Check-in: create new record (or fail if already checked in)
+        existing_record = db.query(Attendance).filter(
+            Attendance.employee_id == client_id,
+            Attendance.check_in >= datetime.datetime.combine(today, datetime.time.min),
+            Attendance.check_in < datetime.datetime.combine(today + datetime.timedelta(days=1), datetime.time.min),
+            Attendance.check_out == None
+        ).first()
+        
+        if existing_record:
+            return {"error": f"{client.username} is already checked in"}
+        
+        attendance = Attendance(
+            employee_id=client_id,
+            status="present",
+            reason="Manual entry",
+            check_in=datetime.datetime.now()
+        )
+        db.add(attendance)
+        db.commit()
+        return {"status": "success", "message": f"{client.username} - Checked in at {datetime.datetime.now().strftime('%H:%M:%S')}"}
 
 
 @app.get("/admin/register", response_class=HTMLResponse)
@@ -321,6 +359,11 @@ def client_home(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=302)
 
     user = db.query(User).filter(User.id == request.session["user_id"]).first()
+    if not user:
+        # User doesn't exist (database was cleared), clear session and redirect to login
+        request.session.clear()
+        return RedirectResponse("/login", status_code=302)
+    
     return templates.TemplateResponse(
         "client.html",
         {
@@ -331,8 +374,41 @@ def client_home(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/client/check-status")
+def check_client_status(db: Session = Depends(get_db), request: Request = None):
+    """Check if client is already checked in today"""
+    if "user_id" not in request.session or request.session.get("role") != "client":
+        return {"error": "Unauthorized"}
+    
+    import datetime
+    user_id = request.session["user_id"]
+    today = datetime.date.today()
+    
+    # Check for today's attendance with check_in but no check_out
+    record = db.query(Attendance).filter(
+        Attendance.employee_id == user_id,
+        Attendance.check_in >= datetime.datetime.combine(today, datetime.time.min),
+        Attendance.check_in < datetime.datetime.combine(today + datetime.timedelta(days=1), datetime.time.min),
+        Attendance.check_out == None
+    ).first()
+    
+    return {"checked_in": record is not None}
+
+
 @app.post("/generate_qr")
-def generate(db: Session = Depends(get_db), request: Request = None):
+def generate_qr_endpoint(db: Session = Depends(get_db), request: Request = None):
+    """Generate QR code for client check-in/check-out"""
+    if "user_id" not in request.session or request.session.get("role") != "client":
+        return {"error": "Unauthorized"}
+
+    user_id = request.session["user_id"]
+    path = generate_qr(user_id, db)
+    return {"qr_path": path}
+
+
+@app.get("/generate_qr")
+def generate_qr_get(db: Session = Depends(get_db), request: Request = None):
+    """Generate QR code for client check-in/check-out (GET method for legacy support)"""
     if "user_id" not in request.session or request.session.get("role") != "client":
         return {"error": "Unauthorized"}
 

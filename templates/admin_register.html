@@ -175,11 +175,11 @@ document.getElementById("registerForm").onsubmit = async function(e) {
 
   if (data.status === "success") {
     messageDiv.className = "message success";
-    messageDiv.innerHTML = `✓ ${data.message}`;
+    messageDiv.innerHTML = `[SUCCESS] ${data.message}`;
     document.getElementById("registerForm").reset();
   } else {
     messageDiv.className = "message error";
-    messageDiv.innerHTML = `✗ Error: ${data.error}`;
+    messageDiv.innerHTML = `[ERROR] ${data.error}`;
   }
 };
 </script>
