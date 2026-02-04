@@ -41,6 +41,11 @@ except Exception as e:
 # ESP32 Camera activation state
 esp32_active = False
 
+# Server restart tracking - used to invalidate all sessions on server restart
+import time
+server_start_time = time.time()
+server_generation = int(time.time())  # Unique ID for this server instance
+
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
@@ -77,8 +82,35 @@ def cleanup_qr_codes():
                     pass
 
 
+def cleanup_esp32_frame():
+    """Delete latest ESP32 frame for privacy/scrubbing"""
+    frame_path = os.path.join("static", "esp32_latest.jpg")
+    if os.path.exists(frame_path):
+        try:
+            os.remove(frame_path)
+        except:
+            pass
+
+
+def check_session_valid(request: Request):
+    """Check if session is valid after server restart"""
+    global server_generation
+    
+    # Get session's server generation ID
+    session_gen = request.session.get("_server_generation")
+    
+    # If session doesn't have a generation ID or it doesn't match current server generation, invalidate it
+    if not session_gen or int(session_gen) != server_generation:
+        request.session.clear()
+        return False
+    
+    return True
+
+
 # Cleanup on server startup
 cleanup_qr_codes()
+cleanup_esp32_frame()
+print(f"[SERVER START] Generation ID: {server_generation} - All previous sessions invalidated!")
 
 
 def get_db():
@@ -98,6 +130,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/")
 def root(request: Request, db: Session = Depends(get_db)):
+    # Check if session is still valid after server restart
+    if not check_session_valid(request):
+        return RedirectResponse("/login", status_code=302)
+    
     # If no admin exists, redirect to setup
     admin_exists = db.query(User).filter(User.role == "admin").first()
     if not admin_exists:
@@ -151,6 +187,10 @@ def setup_admin(
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(get_db)):
+    # Check if session is still valid after server restart
+    if not check_session_valid(request):
+        request.session.clear()
+    
     # If already logged in, redirect to appropriate dashboard
     if "user_id" in request.session:
         role = request.session.get("role")
@@ -174,6 +214,8 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    global server_generation
+    
     user = authenticate(db, username, password)
     if not user:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
@@ -181,6 +223,7 @@ def login(
     request.session["user_id"] = user.id
     request.session["username"] = user.username
     request.session["role"] = user.role
+    request.session["_server_generation"] = str(server_generation)  # Add server generation for restart tracking
 
     # Redirect based on role
     if user.role == "admin":
@@ -192,17 +235,25 @@ def login(
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
+    global esp32_active
+    esp32_active = False
+    cleanup_esp32_frame()
     return RedirectResponse("/login", status_code=302)
 
 
 # ADMIN ROUTES
 @app.get("/admin", response_class=HTMLResponse)
 def admin_home(request: Request, db: Session = Depends(get_db)):
+    # Check if session is still valid after server restart
+    if not check_session_valid(request):
+        return RedirectResponse("/login", status_code=302)
+    
     if "user_id" not in request.session or request.session.get("role") != "admin":
         return RedirectResponse("/login", status_code=302)
 
     user = db.query(User).filter(User.id == request.session["user_id"]).first()
     if not user:
+        request.session.clear()
         return RedirectResponse("/login", status_code=302)
     
     return templates.TemplateResponse(
@@ -322,6 +373,10 @@ def manual_attendance(
 
 @app.get("/admin/register", response_class=HTMLResponse)
 def admin_register_page(request: Request, db: Session = Depends(get_db)):
+    # Check if session is still valid after server restart
+    if not check_session_valid(request):
+        return RedirectResponse("/login", status_code=302)
+    
     if "user_id" not in request.session or request.session.get("role") != "admin":
         return RedirectResponse("/login", status_code=302)
 
@@ -355,6 +410,10 @@ def admin_register_client(
 # CLIENT ROUTES
 @app.get("/client", response_class=HTMLResponse)
 def client_home(request: Request, db: Session = Depends(get_db)):
+    # Check if session is still valid after server restart
+    if not check_session_valid(request):
+        return RedirectResponse("/login", status_code=302)
+    
     if "user_id" not in request.session or request.session.get("role") != "client":
         return RedirectResponse("/login", status_code=302)
 
@@ -471,6 +530,7 @@ def esp32_deactivate(request: Request):
             return {"error": "Unauthorized"}
         
         esp32_active = False
+        cleanup_esp32_frame()
         return {"status": "deactivated"}
     except Exception as e:
         print(f"Error in deactivate: {e}")

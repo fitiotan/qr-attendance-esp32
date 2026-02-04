@@ -407,7 +407,10 @@ async function activateESP32() {
   `;
   
   // Auto-refresh the image every 1 second
-  setInterval(() => {
+  if (window.liveStreamInterval) {
+    clearInterval(window.liveStreamInterval);
+  }
+  window.liveStreamInterval = setInterval(() => {
     const img = document.getElementById('liveStream');
     if (img) {
       img.src = '/esp32/stream?t=' + Date.now() + '&cache=' + Math.random();
@@ -435,12 +438,17 @@ async function deactivateESP32() {
     clearInterval(scanCheckInterval);
     scanCheckInterval = null;
   }
+  if (window.liveStreamInterval) {
+    clearInterval(window.liveStreamInterval);
+    window.liveStreamInterval = null;
+  }
   
   // Minimize preview (small thumbnail)
   previewDiv.innerHTML = `
     <div style="text-align: center; margin-top: 10px;">
-      <img src="/esp32/stream?t=${Date.now()}" 
-        style="max-width: 200px; border: 2px solid #ccc; border-radius: 8px; opacity: 0.5;">
+      <div style="padding: 20px; border: 2px dashed #ccc; border-radius: 8px; color: #999;">
+        Camera preview cleared
+      </div>
       <p style="font-size: 12px; color: #999;">Camera preview (inactive)</p>
     </div>
   `;

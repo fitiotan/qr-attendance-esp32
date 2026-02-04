@@ -110,6 +110,21 @@
       border-radius: 5px;
       display: inline-block;
     }
+    /* Button color states */
+    button.check-in {
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+      box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+    }
+    button.check-in:hover {
+      box-shadow: 0 6px 20px rgba(72, 187, 120, 0.6);
+    }
+    button.check-out {
+      background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+      box-shadow: 0 4px 15px rgba(237, 137, 54, 0.4);
+    }
+    button.check-out:hover {
+      box-shadow: 0 6px 20px rgba(237, 137, 54, 0.6);
+    }
     @media (max-width: 480px) {
       .header h1 { font-size: 20px; }
       .content h2 { font-size: 18px; }
@@ -156,10 +171,12 @@ function checkStatus() {
         title.textContent = 'Check Out QR Code';
         description.textContent = 'Show this QR code to the admin to record your check-out (valid for 1 minute).';
         button.textContent = 'Generate Check Out QR Code';
+        button.className = 'check-out';
       } else {
         title.textContent = 'Check In QR Code';
         description.textContent = 'Show this QR code to the admin to record your check-in (valid for 1 minute).';
         button.textContent = 'Generate Check In QR Code';
+        button.className = 'check-in';
       }
     });
 }
