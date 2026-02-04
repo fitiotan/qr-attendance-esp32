@@ -1,9 +1,10 @@
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi import Request
 from fastapi import FastAPI, UploadFile, Depends, Form
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
+import socket
 
 from .auth import authenticate, hash_password
 from .database import SessionLocal, engine
@@ -23,6 +24,18 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+def get_local_ip():
+    """Get the local IP address of the server"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
 
 
 def get_db():
@@ -210,3 +223,27 @@ def generate(db: Session = Depends(get_db), request: Request = None):
     user_id = request.session["user_id"]
     path = generate_qr(user_id, db)
     return {"qr_path": path}
+
+# ESP32 CAM ENDPOINTS
+@app.get("/esp32/info")
+def esp32_info():
+    """Get server info for ESP32 connection"""
+    local_ip = get_local_ip()
+    return {
+        "server_ip": local_ip,
+        "port": 8000,
+        "url": f"http://{local_ip}:8000",
+        "scan_endpoint": f"http://{local_ip}:8000/esp32/upload",
+        "message": "Connect your ESP32 to this server"
+    }
+
+
+@app.post("/esp32/upload")
+def esp32_upload(file: UploadFile, db: Session = Depends(get_db)):
+    """
+    Endpoint for ESP32 cam to upload QR code image
+    Usage: POST /esp32/upload with image file
+    Returns: {"status": "OK" or "REJECTED", "message": "..."}
+    """
+    status, message = process_scan(file, db)
+    return {"status": status, "message": message}
