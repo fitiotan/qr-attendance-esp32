@@ -30,7 +30,12 @@ def process_scan(file: UploadFile, db: Session):
         return "REJECTED", "QR expired"
 
     qr.used = True
-    attendance = Attendance(employee_id=emp_id, status="present", reason="ESP32 Scan")
+    attendance = Attendance(
+        employee_id=emp_id, 
+        status="present", 
+        reason="ESP32 Scan",
+        check_in=datetime.datetime.now()
+    )
     db.add(attendance)
     db.commit()
     

@@ -236,23 +236,34 @@
   <div class="content">
     <!-- Tab Navigation -->
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('esp32-scan', event)">ESP32 Scan</button>
+      <button class="tab-btn active" onclick="switchTab('scan-and-log', event)">Attendance Monitor</button>
       <button class="tab-btn" onclick="switchTab('manual-entry', event)">Manual Entry</button>
-      <button class="tab-btn" onclick="switchTab('attendance-log', event)">Attendance Log</button>
     </div>
 
-    <!-- ESP32 Scan Tab -->
-    <div id="esp32-scan" class="tab-content active">
+    <!-- Scan & Log Combined Tab -->
+    <div id="scan-and-log" class="tab-content active">
       <div class="section">
-        <h2>Scan QR Code with ESP32 Camera</h2>
-        <p>Use your ESP32 camera connected via WiFi to automatically scan and record attendance.</p>
+        <h2>ESP32 Camera & Live Attendance Log</h2>
+        
+        <!-- Camera Section -->
         <div class="esp32-section">
           <p>ESP32 Camera: Ready (activates on demand)</p>
           <button onclick="activateESP32()">Activate ESP32 Camera</button>
-          <p style="font-size: 13px; margin-top: 10px;">Camera will only turn on when you click the button. Click "Stop Camera" to turn it off.</p>
+          <p style="font-size: 13px; margin-top: 10px;">Camera will turn on when you click the button.</p>
           <div id="esp32-preview" style="margin-top: 20px;"></div>
+          <div id="esp32-result" class="result"></div>
         </div>
-        <div id="esp32-result" class="result"></div>
+        
+        <!-- Live Attendance Log -->
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin: 0;">Live Attendance Log (Last 20)</h2>
+            <button onclick="loadAttendance()" style="padding: 8px 16px; font-size: 14px;">🔄 Refresh</button>
+          </div>
+          <div id="attendance-table" style="overflow-x: auto;">
+            <p>Loading attendance records...</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -272,17 +283,7 @@
       </div>
     </div>
 
-    <!-- Attendance Log Tab -->
-    <div id="attendance-log" class="tab-content">
-      <div class="section">
-        <h2>Attendance Records (Last 20)</h2>
-        <p>Live attendance log showing recent check-ins.</p>
-        <button onclick="loadAttendance()">🔄 Refresh</button>
-        <div id="attendance-table" style="margin-top: 20px; overflow-x: auto;">
-          <p>Loading attendance records...</p>
-        </div>
-      </div>
-    </div>
+
   </div>
 </div>
 
@@ -298,18 +299,23 @@ function switchTab(tabName, event) {
   buttons.forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   
-  // Auto-load attendance when switching to that tab
-  if (tabName === 'attendance-log') {
-    loadAttendance();
-  }
-}
-  buttons.forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  
-  // Load clients when manual entry tab is opened
+  // Load appropriate data for each tab
   if (tabName === 'manual-entry') {
     loadClients();
   }
+  if (tabName === 'scan-and-log') {
+    loadAttendance();
+    // Auto-refresh attendance log every 5 seconds
+    if (window.attendanceInterval) clearInterval(window.attendanceInterval);
+    window.attendanceInterval = setInterval(loadAttendance, 5000);
+  } else {
+    // Stop auto-refresh when switching away
+    if (window.attendanceInterval) {
+      clearInterval(window.attendanceInterval);
+      window.attendanceInterval = null;
+    }
+  }
+}
 
 
 // Load clients for manual entry
@@ -344,19 +350,34 @@ async function activateESP32() {
   resultDiv.className = 'result';
   resultDiv.innerHTML = 'Activating ESP32 camera...';
   
+  console.log('Sending activation request...');
+  
   // Send activation command to server
   try {
-    const response = await fetch('/esp32/activate', { method: 'POST' });
+    const response = await fetch('/esp32/activate', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    console.log('Response status:', response.status);
     const data = await response.json();
+    console.log('Response data:', data);
     
     if (data.error) {
       resultDiv.className = 'result error';
       resultDiv.innerHTML = '✗ Error: ' + data.error;
       return;
     }
+    
+    if (response.status !== 200) {
+      resultDiv.className = 'result error';
+      resultDiv.innerHTML = '✗ Server returned error (check console)';
+      return;
+    }
   } catch (error) {
+    console.error('Activation error:', error);
     resultDiv.className = 'result error';
-    resultDiv.innerHTML = '✗ Failed to activate ESP32';
+    resultDiv.innerHTML = '✗ Failed to activate ESP32: ' + error.message;
     return;
   }
   
@@ -405,8 +426,14 @@ async function deactivateESP32() {
     scanCheckInterval = null;
   }
   
-  // Clear preview
-  previewDiv.innerHTML = '';
+  // Minimize preview (small thumbnail)
+  previewDiv.innerHTML = `
+    <div style="text-align: center; margin-top: 10px;">
+      <img src="/esp32/stream?t=${Date.now()}" 
+        style="max-width: 200px; border: 2px solid #ccc; border-radius: 8px; opacity: 0.5;">
+      <p style="font-size: 12px; color: #999;">Camera preview (inactive)</p>
+    </div>
+  `;
   resultDiv.className = 'result';
   resultDiv.innerHTML = 'ESP32 camera stopped.';
 }
@@ -498,22 +525,19 @@ function loadAttendance() {
       
       let html = '<table style="width: 100%; border-collapse: collapse;">';
       html += '<thead><tr style="background: #667eea; color: white;">';
-      html += '<th style="padding: 12px; text-align: left;">ID</th>';
       html += '<th style="padding: 12px; text-align: left;">Client</th>';
-      html += '<th style="padding: 12px; text-align: left;">Status</th>';
+      html += '<th style="padding: 12px; text-align: left;">Check In</th>';
+      html += '<th style="padding: 12px; text-align: left;">Check Out</th>';
       html += '<th style="padding: 12px; text-align: left;">Method</th>';
-      html += '<th style="padding: 12px; text-align: left;">Time</th>';
       html += '</tr></thead><tbody>';
       
       data.forEach((record, index) => {
         const bgColor = index % 2 === 0 ? '#f9f9f9' : 'white';
-        const statusColor = record.status === 'OK' ? '#4CAF50' : '#f44336';
         html += `<tr style="background: ${bgColor};">`;
-        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.id}</td>`;
         html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>${record.username}</strong></td>`;
-        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd; color: ${statusColor}; font-weight: bold;">${record.status}</td>`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.check_in}</td>`;
+        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.check_out}</td>`;
         html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.reason}</td>`;
-        html += `<td style="padding: 10px; border-bottom: 1px solid #ddd;">${record.timestamp}</td>`;
         html += '</tr>';
       });
       

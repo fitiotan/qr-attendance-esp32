@@ -102,6 +102,19 @@ void loop() {
     return;
   }
 
+  // Print connection info periodically
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 10000) {  // Every 10 seconds
+    Serial.println("=== Status ===");
+    Serial.print("ESP32 IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("Server IP: ");
+    Serial.println(serverIP);
+    Serial.print("Checking: ");
+    Serial.println(statusURL);
+    lastPrint = millis();
+  }
+
   // Check server status to see if camera should be active
   if (!checkServerStatus()) {
     Serial.println("Camera inactive, waiting...");
@@ -144,7 +157,7 @@ void loop() {
   http.end();
   esp_camera_fb_return(fb);
   
-  delay(500);  // Capture every 0.5 second when active
+  delay(200);  // Capture every 200ms = 5 FPS (adjust for desired framerate: 100=10fps, 333=3fps, 500=2fps, 1000=1fps)
 }
 
 bool checkServerStatus() {

@@ -10,12 +10,33 @@ import os
 
 from .auth import authenticate, hash_password
 from .database import SessionLocal, engine
-from .models import Base, User, QRCode
+from .models import Base, User, QRCode, Attendance
 from .scan import process_scan
 from .qr import generate_qr
 from fastapi.staticfiles import StaticFiles
 
-Base.metadata.create_all(bind=engine)
+# Create tables with automatic migration
+try:
+    Base.metadata.create_all(bind=engine)
+    
+    # Add missing columns to existing Attendance table
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE attendance ADD COLUMN check_in DATETIME"))
+            conn.commit()
+            print("✓ Added check_in column")
+        except:
+            pass  # Column already exists
+        
+        try:
+            conn.execute(text("ALTER TABLE attendance ADD COLUMN check_out DATETIME"))
+            conn.commit()
+            print("✓ Added check_out column")
+        except:
+            pass  # Column already exists
+except Exception as e:
+    print(f"Database migration error: {e}")
 
 # ESP32 Camera activation state
 esp32_active = False
@@ -173,6 +194,9 @@ def admin_home(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=302)
 
     user = db.query(User).filter(User.id == request.session["user_id"]).first()
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    
     return templates.TemplateResponse(
         "admin.html",
         {
@@ -220,6 +244,8 @@ def get_attendance(request: Request, db: Session = Depends(get_db)):
             "username": user.username if user else "Unknown",
             "status": record.status,
             "reason": record.reason,
+            "check_in": record.check_in.strftime("%Y-%m-%d %H:%M:%S") if record.check_in else "N/A",
+            "check_out": record.check_out.strftime("%Y-%m-%d %H:%M:%S") if record.check_out else "-",
             "timestamp": record.scan_time.strftime("%Y-%m-%d %H:%M:%S") if record.scan_time else "N/A"
         })
     
@@ -332,6 +358,7 @@ def esp32_info():
 def esp32_status():
     """Check if ESP32 should be active"""
     global esp32_active
+    print(f"ESP32 status check: active={esp32_active}")
     return {"active": esp32_active}
 
 
@@ -339,20 +366,39 @@ def esp32_status():
 def esp32_activate(request: Request):
     """Activate ESP32 camera"""
     global esp32_active
-    if "user_id" not in request.session or request.session.get("role") != "admin":
-        return {"error": "Unauthorized"}
-    esp32_active = True
-    return {"status": "activated"}
+    try:
+        user_id = request.session.get("user_id")
+        role = request.session.get("role")
+        print(f"Activation request - user_id: {user_id}, role: {role}")
+        
+        if not user_id or role != "admin":
+            print("Activation denied - not admin or not logged in")
+            return {"error": "Unauthorized - admin access required"}
+        
+        esp32_active = True
+        print(f"ESP32 activated! Status: {esp32_active}")
+        return {"status": "activated"}
+    except Exception as e:
+        print(f"Error in activate: {e}")
+        return {"error": str(e)}
 
 
 @app.post("/esp32/deactivate")
 def esp32_deactivate(request: Request):
     """Deactivate ESP32 camera"""
     global esp32_active
-    if "user_id" not in request.session or request.session.get("role") != "admin":
-        return {"error": "Unauthorized"}
-    esp32_active = False
-    return {"status": "deactivated"}
+    try:
+        user_id = request.session.get("user_id")
+        role = request.session.get("role")
+        
+        if not user_id or role != "admin":
+            return {"error": "Unauthorized"}
+        
+        esp32_active = False
+        return {"status": "deactivated"}
+    except Exception as e:
+        print(f"Error in deactivate: {e}")
+        return {"error": str(e)}
 
 
 @app.post("/esp32/upload")

@@ -24,6 +24,8 @@ class Attendance(Base):
     scan_time = Column(DateTime, default=datetime.datetime.now)
     status = Column(String)
     reason = Column(String)
+    check_in = Column(DateTime)
+    check_out = Column(DateTime)
 
 class User(Base):
     __tablename__ = "users"
