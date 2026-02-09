@@ -8,10 +8,25 @@
 //
 
 // ===================
-// Select camera model
+// XIAO ESP32S3 Sense (OV2640) camera pins
 // ===================
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM
-#include "camera_pins.h"
+#define PWDN_GPIO_NUM  -1
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM  10
+#define SIOD_GPIO_NUM  40
+#define SIOC_GPIO_NUM  39
+
+#define Y9_GPIO_NUM    48
+#define Y8_GPIO_NUM    11
+#define Y7_GPIO_NUM    12
+#define Y6_GPIO_NUM    14
+#define Y5_GPIO_NUM    16
+#define Y4_GPIO_NUM    18
+#define Y3_GPIO_NUM    17
+#define Y2_GPIO_NUM    15
+#define VSYNC_GPIO_NUM 38
+#define HREF_GPIO_NUM  47
+#define PCLK_GPIO_NUM  13
 
 // ===========================
 // WiFi credentials
@@ -63,22 +78,21 @@ void setup() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.grab_mode = CAMERA_GRAB_LATEST;
   
   // PSRAM configuration
   if (psramFound()) {
     Serial.println("[OK] PSRAM found - enabling high quality mode");
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.jpeg_quality = 10;
+    config.jpeg_quality = 15;
     config.fb_count = 2;
-    config.grab_mode = CAMERA_GRAB_LATEST;
-    config.frame_size = FRAMESIZE_QVGA;  // 320x240
+    config.frame_size = FRAMESIZE_QQVGA;  // 160x120
   } else {
     Serial.println("[WARN] No PSRAM - using lower quality");
     config.fb_location = CAMERA_FB_IN_DRAM;
-    config.jpeg_quality = 8;
+    config.jpeg_quality = 15;
     config.fb_count = 1;
     config.frame_size = FRAMESIZE_QQVGA;  // 160x120
   }
@@ -90,9 +104,11 @@ void setup() {
     return;
   }
   Serial.println("[OK] Camera initialized!");
+  delay(200);
 
   // Sensor configuration
   sensor_t *s = esp_camera_sensor_get();
+  Serial.printf("[CAM] Sensor PID: 0x%04x\n", s->id.PID);
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1);
     s->set_brightness(s, 1);
@@ -100,7 +116,7 @@ void setup() {
   }
   
   // Set lower frame size for initial stability
-  s->set_framesize(s, FRAMESIZE_QVGA);
+  s->set_framesize(s, FRAMESIZE_QQVGA);
 
   // WiFi connection
   Serial.print("[WIFI] Connecting to ");
@@ -180,7 +196,14 @@ void checkCameraStatus() {
 
 void captureAndUpload() {
   // Capture frame
-  camera_fb_t *fb = esp_camera_fb_get();
+  camera_fb_t *fb = nullptr;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    fb = esp_camera_fb_get();
+    if (fb) {
+      break;
+    }
+    delay(50);
+  }
   if (!fb) {
     Serial.println("[CAM] Capture failed");
     return;
