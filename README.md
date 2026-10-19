@@ -183,9 +183,9 @@ CREATE TABLE qrcode (
 ### WiFi Setup
 Update in `esp32_qr_scanner_v3.ino`:
 ```cpp
-const char* ssid = "tio";
-const char* password = "12345678";
-const char* serverIP = "10.21.55.146";
+const char* ssid = "xxx";
+const char* password = "xxx";
+const char* serverIP = "xxx";
 ```
 
 ## Troubleshooting
